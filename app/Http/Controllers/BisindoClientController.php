@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class BisindoClientController extends Controller
 {
-    private $baseUrl = 'https://polyester-pupil-armored.ngrok-free.dev/api';
+    private $baseUrl = 'https://polyester-pupil-armored.ngrok-free.dev/public/api';
     private $webUrl = 'https://polyester-pupil-armored.ngrok-free.dev';
 
     /**
@@ -16,9 +17,9 @@ class BisindoClientController extends Controller
     private function apiGet(string $endpoint, array $query = [])
     {
         return Http::withHeaders([
-                'ngrok-skip-browser-warning' => '69420',
-                'Accept' => 'application/json',
-            ])
+            'ngrok-skip-browser-warning' => '69420',
+            'Accept' => 'application/json',
+        ])
             ->connectTimeout(30)
             ->timeout(30)
             ->retry(2, 1000)
@@ -150,15 +151,22 @@ class BisindoClientController extends Controller
             $histories    = $this->sortById($this->extractData($historyResp));
             $models       = $this->sortById($this->extractData($modelsResp));
             $feedbacks    = $this->sortById($this->extractData($feedbacksResp));
-
         } catch (\Exception $e) {
             $error = 'API Error: ' . $e->getMessage();
         }
 
         return view('bisindo_dashboard', compact(
-            'error', 'stats', 'users',
-            'gestures', 'vocabularies', 'translations',
-            'audioFiles', 'categories', 'histories', 'models', 'feedbacks'
+            'error',
+            'stats',
+            'users',
+            'gestures',
+            'vocabularies',
+            'translations',
+            'audioFiles',
+            'categories',
+            'histories',
+            'models',
+            'feedbacks'
         ));
     }
 
@@ -169,43 +177,38 @@ class BisindoClientController extends Controller
     private function fetchUsersFromDashboard(): array
     {
         try {
-            $users = [];
-            $page = 1;
+            // Try multiple possible dashboard URLs to find the one that serves the HTML with users table
+            $paths = ['/', '/public', '/public/dashboard', '/dashboard', '/public/index.php'];
 
-            while (true) {
+            foreach ($paths as $path) {
+                $url = $this->webUrl . $path;
                 $response = Http::withHeaders([
-                        'ngrok-skip-browser-warning' => '69420',
-                    ])
-                    ->connectTimeout(30)
-                    ->timeout(30)
-                    ->get($this->webUrl, ['users_page' => $page]);
+                    'ngrok-skip-browser-warning' => '69420',
+                ])
+                    ->connectTimeout(15)
+                    ->timeout(15)
+                    ->get($url, ['users_page' => 1]);
 
-                if (!$response->successful()) {
-                    break;
+                Log::info("fetchUsers: trying {$path} => status=" . $response->status() . ', body length=' . strlen($response->body()));
+
+                if ($response->successful()) {
+                    $html = $response->body();
+                    $hasUsersTable = strpos($html, 'id="sub-users"') !== false;
+                    Log::info("fetchUsers: {$path} => contains sub-users=" . ($hasUsersTable ? 'YES' : 'NO'));
+
+                    if ($hasUsersTable) {
+                        Log::info("fetchUsers: found dashboard at {$path}");
+                        $users = $this->parseUsersTable($html);
+                        usort($users, fn($a, $b) => ((int) $a['id']) <=> ((int) $b['id']));
+                        return $users;
+                    }
                 }
-
-                $html = $response->body();
-                $parsed = $this->parseUsersTable($html);
-
-                if (empty($parsed)) {
-                    break;
-                }
-
-                $users = array_merge($users, $parsed);
-
-                // Check if there's a next page link for users_page
-                if (strpos($html, 'users_page=' . ($page + 1)) === false) {
-                    break;
-                }
-
-                $page++;
             }
 
-            // Sort by id
-            usort($users, fn($a, $b) => ((int) $a['id']) <=> ((int) $b['id']));
-
-            return $users;
+            Log::warning('fetchUsers: could not find dashboard with users table at any path');
+            return [];
         } catch (\Exception $e) {
+            Log::error('fetchUsers exception: ' . $e->getMessage());
             return [];
         }
     }
@@ -261,10 +264,10 @@ class BisindoClientController extends Controller
     private function apiPost(string $endpoint, array $data = [])
     {
         return Http::withHeaders([
-                'ngrok-skip-browser-warning' => '69420',
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ])
+            'ngrok-skip-browser-warning' => '69420',
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ])
             ->connectTimeout(30)
             ->timeout(30)
             ->post($this->baseUrl . $endpoint, $data);
@@ -333,9 +336,9 @@ class BisindoClientController extends Controller
                 $endpoint = '/audio';
                 // Audio requires file upload -- use multipart
                 $http = Http::withHeaders([
-                        'ngrok-skip-browser-warning' => '69420',
-                        'Accept' => 'application/json',
-                    ])
+                    'ngrok-skip-browser-warning' => '69420',
+                    'Accept' => 'application/json',
+                ])
                     ->connectTimeout(30)
                     ->timeout(30);
 
@@ -354,10 +357,12 @@ class BisindoClientController extends Controller
                 $response = $http->post($this->baseUrl . $endpoint, $formData);
 
                 return redirect()->route('bisindo.dashboard')
-                    ->with($response && $response->successful() ? 'success' : 'error',
+                    ->with(
+                        $response && $response->successful() ? 'success' : 'error',
                         $response && $response->successful()
                             ? 'Audio berhasil ditambahkan!'
-                            : 'Gagal: ' . ($response ? $response->body() : 'No response'));
+                            : 'Gagal: ' . ($response ? $response->body() : 'No response')
+                    );
 
             case 'categories':
                 $endpoint = '/categories';
@@ -425,9 +430,15 @@ class BisindoClientController extends Controller
         $response = $this->apiPost($endpoint, $data);
 
         $labels = [
-            'gestures' => 'Gestur', 'users' => 'Pengguna', 'vocabularies' => 'Kosakata',
-            'translations' => 'Terjemahan', 'audio' => 'Audio', 'categories' => 'Kategori',
-            'history' => 'Riwayat', 'models' => 'Model AI', 'feedbacks' => 'Feedback',
+            'gestures' => 'Gestur',
+            'users' => 'Pengguna',
+            'vocabularies' => 'Kosakata',
+            'translations' => 'Terjemahan',
+            'audio' => 'Audio',
+            'categories' => 'Kategori',
+            'history' => 'Riwayat',
+            'models' => 'Model AI',
+            'feedbacks' => 'Feedback',
         ];
         $label = $labels[$type] ?? $type;
 

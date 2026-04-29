@@ -13,4 +13,5 @@ Route::get('/checker', function (Request $request) {
 });
 
 Route::resource('biodata', App\Http\Controllers\biodata::class);
+Route::resource('bisindo', App\Http\Controllers\BisindoClientController::class);
 Route::resource('zk_client_p6', zk_client_p6::class);
