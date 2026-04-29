@@ -172,7 +172,7 @@ class BisindoClientController extends Controller
 
     /**
      * Fetch ALL user rows by scraping every page of the web dashboard.
-     * The API has no public /api/users list endpoint, so we parse the HTML table.
+     * The API has no public /api/users list endpoint, so we parse the HTML table (for now).
      */
     private function fetchUsersFromDashboard(): array
     {
