@@ -1,0 +1,20 @@
+info:
+  name: View
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: https://jurisprudential-eufemia-opportunistically.ngrok-free.dev/api/audio
+  headers:
+    - name: Accept
+      value: application/json
+  body:
+    type: multipart-form
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

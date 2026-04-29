@@ -1,0 +1,23 @@
+[
+    {
+        "nama": "Pria Solo",
+        "npm": "011230021",
+        "prodi": "informatika",
+        "ipk": "4",
+        "semester": "6"
+    },
+    {
+        "nama": "Pria Sawit",
+        "npm": "011230021",
+        "prodi": "informatika",
+        "ipk": "4",
+        "semester": "6"
+    },
+    {
+        "nama": "Zaky",
+        "npm": "011230021",
+        "prodi": "informatika",
+        "ipk": "4",
+        "semester": "6"
+    }
+]
